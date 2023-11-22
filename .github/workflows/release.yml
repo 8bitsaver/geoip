@@ -1,0 +1,146 @@
+name: Publish Geoip data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 22 * * *'
+
+env:
+  GEOIP_SOURCE_REPO: '8bitsaver/maxmind-geoip'
+  # IPList for China by IPIP.NET
+  CHINA_IP_LIST_IPIPNET_REPO: '17mon/china_ip_list'
+  # IPList for China by ChunZhen database
+  CHINA_IP_LIST_CHUNZHEN_REPO: 'metowolf/iplist'
+  # IPList for China by APNIC
+  CHINA_IP_LIST_APNIC_REPO: '8bitsaver/cnroute-auto'
+  # IPList for China cloud
+  CHINA_CLOUD_IP_LIST_REPO: 'blackmatrix7/ios_rule_script'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare
+        run: |
+          echo "TAG_NAME=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
+      
+      - name: Checkout Source code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          path: './'
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+          check-latest: true
+
+      - name: Download GeoLite2-Country mmdb
+        run: |
+          cd ${{ github.workspace }}
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo GeoLite2-Country.mmdb https://github.com/${{ env.GEOIP_SOURCE_REPO }}/releases/latest/download/GeoLite2-Country.mmdb
+     
+      # - name: Download GeoLite2-Country-CSV for newly created .db
+      #   run: |
+      #     cd ${{ github.workspace }}
+      #     curl -LR https://github.com/${{ env.GEOIP_SOURCE_REPO }}/releases/download/latest/GeoLite2-Country-CSV.zip
+      #     unzip GeoLite2-Country-CSV.zip
+      #     rm -f GeoLite2-Country-CSV.zip
+      #     mv GeoLite2-Country-CSV_* mindmax
+
+      - name: Download apnic china ip list
+        run: |
+          cd ${{ github.workspace }}
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ./mmdb-geoip/all_cn.txt https://github.com/${{ env.CHINA_IP_LIST_APNIC_REPO }}/releases/latest/download/cnroute-ipv4.txt
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ./mmdb-geoip/all_cn_ipv6.txt https://github.com/${{ env.CHINA_IP_LIST_APNIC_REPO }}/releases/latest/download/cnroute-ipv6.txt
+
+      - name: Download china_ip_list
+        run: |
+          cd ${{ github.workspace }}
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ./mmdb-geoip/china_ip_list.txt https://github.com/${{ env.CHINA_IP_LIST_IPIPNET_REPO }}/raw/master/china_ip_list.txt
+      
+      - name: Download chunzhen cn list
+        run: |
+          cd ${{ github.workspace }}
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ./mmdb-geoip/CN.txt https://github.com/${{ env.CHINA_IP_LIST_CHUNZHEN_REPO }}/raw/master/data/special/china.txt
+      
+      - name: Download china cloud ip
+        run: |
+          cd ${{ github.workspace }}
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ./mmdb-geoip/CloudCN.list https://github.com/${{ env.CHINA_CLOUD_IP_LIST_REPO }}/raw/master/rule/Clash/Cloud/CloudCN/CloudCN.list
+      
+      - name: Generate mmdb file
+        run: |
+          cd ${{ github.workspace }}/mmdb-geoip
+          go run ./ --new=false --dir=${{ github.workspace }} --out=Country.mmdb
+      
+      - name: Generate sing geosite.db
+        run: |
+          cd ${{ github.workspace }}/sing-geoip
+          go run ./ --mmdb-in ${{ github.workspace }}/Country.mmdb --sdb-out ${{ github.workspace }} --srs-out ${{ github.workspace }}
+      
+      - name: Generate geosite/mmdb sha256 hash
+        run: |
+          sha256sum ${{ github.workspace }}/Country.mmdb > ${{ github.workspace }}/Country.mmdb.sha256sum
+          sha256sum ${{ github.workspace }}/geoip.db > ${{ github.workspace }}/geoip.db.sha256sum
+
+      - name: Push to "release" branch
+        run: |
+          mkdir -p ${{ github.workspace }}/upload
+          cp ${{ github.workspace }}/Country.mmdb ${{ github.workspace }}/upload/
+          cp ${{ github.workspace }}/geoip.db ${{ github.workspace }}/upload/
+          cp ${{ github.workspace }}/Country.mmdb.sha256sum ${{ github.workspace }}/upload/
+          cp ${{ github.workspace }}/geoip.db.sha256sum ${{ github.workspace }}/upload/
+          cp -r ${{ github.workspace }}/rule-set ${{ github.workspace }}/upload/
+          cd ${{ github.workspace }}/upload
+          git init
+          git config user.name "Epsilon"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git checkout -b release
+          git add .
+          git commit -m "${{ env.TAG_NAME }}"
+          git remote add origin "https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}"
+          git push -f origin release
+
+      - name: Upload to Releases
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          body: ${{ env.TAG_NAME }}
+          draft: false
+          prerelease: false
+          files: |
+            ${{ github.workspace }}/upload/Country.mmdb*
+            ${{ github.workspace }}/upload/geoip.db*
+
+      - name: Remove old Releases
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          keep_latest: 3
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # - name: Upload to Latest Tag
+      #   uses: softprops/action-gh-release@v1
+      #   env:
+      #     GITHUB_TOKEN: ${{ github.token }}
+      #   with:
+      #     tag_name: latest
+      #     body: The latest.
+      #     draft: false
+      #     prerelease: true
+      #     files: |
+      #       ${{ github.workspace }}/upload/Country.mmdb*
+      #       ${{ github.workspace }}/upload/geoip.db*
+
+      - name: Remove old Workflow runs records
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 3
+          keep_minimum_runs: 3
