@@ -8,17 +8,18 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/maxmind/mmdbwriter"
-	"github.com/maxmind/mmdbwriter/inserter"
-	"github.com/maxmind/mmdbwriter/mmdbtype"
-	"github.com/oschwald/geoip2-golang"
-	"github.com/oschwald/maxminddb-golang"
 	"github.com/sagernet/sing-box/common/srs"
 	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
 	"github.com/sagernet/sing/common"
 	E "github.com/sagernet/sing/common/exceptions"
+
+	"github.com/maxmind/mmdbwriter"
+	"github.com/maxmind/mmdbwriter/inserter"
+	"github.com/maxmind/mmdbwriter/mmdbtype"
+	"github.com/oschwald/geoip2-golang"
+	"github.com/oschwald/maxminddb-golang"
 )
 
 var (
@@ -130,7 +131,7 @@ func write(writer *mmdbwriter.Tree, dataMap map[string][]*net.IPNet, output stri
 	return err
 }
 
-func release(output string, ruleSetOutput string) error {
+func release(output string, cnOutput string, ruleSetOutput string) error {
 	binary, err := os.ReadFile(filepath.Join(mmdbFile))
 	if err != nil {
 		log.Error("fail to open %s\n", err)
@@ -144,11 +145,21 @@ func release(output string, ruleSetOutput string) error {
 	for code := range countryMap {
 		allCodes = append(allCodes, code)
 	}
+
 	writer, err := newWriter(metadata, allCodes)
 	if err != nil {
 		return err
 	}
 	err = write(writer, countryMap, filepath.Join(dbOutputDir, output), nil)
+	if err != nil {
+		return err
+	}
+
+	writer, err = newWriter(metadata, []string{"cn"})
+	if err != nil {
+		return err
+	}
+	err = write(writer, countryMap, filepath.Join(dbOutputDir, cnOutput), []string{"cn"})
 	if err != nil {
 		return err
 	}
@@ -184,11 +195,16 @@ func release(output string, ruleSetOutput string) error {
 		}
 		outputRuleSet.Close()
 	}
+
 	return nil
 }
 
 func main() {
-	err := release("geoip.db", "rule-set")
+	err := release(
+		"geoip.db",
+		"geoip-cn.db",
+		"rule-set",
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
