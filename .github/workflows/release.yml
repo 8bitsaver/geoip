@@ -7,6 +7,8 @@ on:
 
 env:
   GEOIP_SOURCE_REPO: '8bitsaver/ipinfo-geoip-maxmind-compat'
+  SINGBOX_SOURCE_REPO: 'sagernet/sing-box'
+  SINGBOX_VER: '1.8.0-rc.5'
 
 jobs:
   run:
@@ -28,16 +30,33 @@ jobs:
           go-version: "1.21"
           check-latest: true
 
+      - name: Download sing-box
+        run: |
+          cd ${{ github.workspace }}
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo sing-box.tar.gz https://github.com/${{ env.SINGBOX_SOURCE_REPO }}/releases/download/v${{ env.SINGBOX_VER }}/sing-box-${{ env.SINGBOX_VER }}-linux-amd64.tar.gz
+          tar xzvf sing-box.tar.gz --strip-components=1 -C ./
+          chmod +x sing-box
+
       - name: Download country.mmdb
         run: |
           cd ${{ github.workspace }}
           curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo country.mmdb https://github.com/${{ env.GEOIP_SOURCE_REPO }}/releases/latest/download/country.mmdb
       
-      - name: Generate sing-box geoip.db
+      - name: Generate sing-box geoip.db and its rule-set
         run: |
           cd ${{ github.workspace }}/sing-geoip
           go run ./ --mmdb-in ${{ github.workspace }}/country.mmdb --sdb-out ${{ github.workspace }} --srs-out ${{ github.workspace }}
       
+      - name: Export sing-box geoip rule-set json
+        run: |
+          cd ${{ github.workspace }}
+          list=($(./sing-box geoip list -f ${{ github.workspace }}/geoip.db))
+          echo "geoip node: ${#list[@]}"
+          for ((i = 0; i < ${#list[@]}; i++)); do
+            echo "write ${{ github.workspace }}/rule-set/geoip-${list[i]}.json"
+            ${{ github.workspace }}/sing-box geoip export ${list[i]} -f ${{ github.workspace }}/geoip.db -o ${{ github.workspace }}/rule-set/geoip-${list[i]}.json
+          done
+
       - name: Generate geoip/mmdb sha256 hash
         run: |
           cd ${{ github.workspace }}
@@ -46,13 +65,12 @@ jobs:
 
       - name: Push to "release" branch
         run: |
-          mkdir -p ${{ github.workspace }}/upload
-          cp ${{ github.workspace }}/geoip.db ${{ github.workspace }}/upload/
-          cp ${{ github.workspace }}/geoip-cn.db ${{ github.workspace }}/upload/
-          cp ${{ github.workspace }}/geoip.db.sha256sum ${{ github.workspace }}/upload/
-          cp ${{ github.workspace }}/geoip-cn.db.sha256sum ${{ github.workspace }}/upload/
-          cp -r ${{ github.workspace }}/rule-set ${{ github.workspace }}/upload/
-          cd ${{ github.workspace }}/upload
+          mkdir -p ${{ github.workspace }}/release-upload
+          cp ${{ github.workspace }}/geoip.db ${{ github.workspace }}/release-upload/
+          cp ${{ github.workspace }}/geoip-cn.db ${{ github.workspace }}/release-upload/
+          cp ${{ github.workspace }}/geoip.db.sha256sum ${{ github.workspace }}/release-upload/
+          cp ${{ github.workspace }}/geoip-cn.db.sha256sum ${{ github.workspace }}/release-upload/
+          cd ${{ github.workspace }}/release-upload
           git init
           git config user.name "Epsilon"
           git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
@@ -61,6 +79,20 @@ jobs:
           git commit -m "${{ env.TAG_NAME }}"
           git remote add origin "https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}"
           git push -f origin release
+
+      - name: Push to "rule-set" branch
+        run: |
+          mkdir -p ${{ github.workspace }}/rule-set-upload
+          cp -r ${{ github.workspace }}/rule-set ${{ github.workspace }}/rule-set-upload/
+          cd ${{ github.workspace }}/rule-set-upload
+          git init
+          git config user.name "Epsilon"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git checkout -b rule-set
+          git add .
+          git commit -m "${{ env.TAG_NAME }}"
+          git remote add origin "https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}"
+          git push -f origin rule-set
 
       - name: Upload to Releases
         uses: softprops/action-gh-release@v1
@@ -72,8 +104,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ${{ github.workspace }}/upload/geoip.db*
-            ${{ github.workspace }}/upload/geoip-cn.db*
+            ${{ github.workspace }}/geoip.db*
+            ${{ github.workspace }}/geoip-cn.db*
 
       - name: Remove old Releases
         uses: dev-drprasad/delete-older-releases@v0.3.2
@@ -93,8 +125,8 @@ jobs:
       #     draft: false
       #     prerelease: true
       #     files: |
-      #       ${{ github.workspace }}/upload/geoip.db*
-      #       ${{ github.workspace }}/upload/geoip-cn.db*
+      #       ${{ github.workspace }}/geoip.db*
+      #       ${{ github.workspace }}/geoip-cn.db*
 
       - name: Remove old Workflow runs records
         uses: Mattraks/delete-workflow-runs@v2
