@@ -47,6 +47,7 @@ jobs:
           cd ${{ github.workspace }}/sing-geoip
           go run ./ --mmdb-in ${{ github.workspace }}/country.mmdb --sdb-out ${{ github.workspace }} --srs-out ${{ github.workspace }}
       
+      # Be careful, File geoip-de.json is 210.49 MB; this exceeds GitHub's file size limit of 100.00 MB
       - name: Export sing-box geoip rule-set json
         run: |
           cd ${{ github.workspace }}
