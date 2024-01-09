@@ -12,6 +12,7 @@ env:
 
 jobs:
   run:
+    name: Geoip database and rule-set
     runs-on: ubuntu-latest
     steps:
       - name: Prepare
@@ -30,12 +31,42 @@ jobs:
           go-version: "1.21"
           check-latest: true
 
+      - name: Setup Python3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies & Prepare
+        run: |
+          mkdir -p ${{ github.workspace }}/rule-set-company
+          python3 -m pip install httpx[http2]
+
       - name: Download sing-box
         run: |
           cd ${{ github.workspace }}
           curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo sing-box.tar.gz https://github.com/${{ env.SINGBOX_SOURCE_REPO }}/releases/download/v${{ env.SINGBOX_VER }}/sing-box-${{ env.SINGBOX_VER }}-linux-amd64v3.tar.gz
           tar xzvf sing-box.tar.gz --strip-components=1 -C ./
           chmod +x sing-box
+
+      - name: Fetch Company Geoip
+        run: |
+          cd ${{ github.workspace }}/rule-set-company
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-cloudflare.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-cloudfront.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-fastly.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-google.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-googlecloud.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-telegram.py
+
+      - name: Generate rule-set binary
+        run: |
+          cd ${{ github.workspace }}/rule-set-company
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-cloudflare.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-cloudfront.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-fastly.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-google.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-googlecloud.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-telegram.json
 
       - name: Download country.mmdb
         run: |
@@ -94,6 +125,18 @@ jobs:
           git commit -m "${{ env.TAG_NAME }}"
           git remote add origin "https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}"
           git push -f origin rule-set
+
+      - name: Push to "rule-set-company" branch
+        run: |
+          cd ${{ github.workspace }}/rule-set-company
+          git init
+          git config user.name "Epsilon"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git checkout -b rule-set-company
+          git add .
+          git commit -m "${{ env.TAG_NAME }}"
+          git remote add origin "https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}"
+          git push -f origin rule-set-company
 
       - name: Upload to Releases
         uses: softprops/action-gh-release@v1
