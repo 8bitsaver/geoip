@@ -8,7 +8,7 @@ on:
 env:
   GEOIP_SOURCE_REPO: '8bitsaver/ipinfo-geoip-maxmind-compat'
   SINGBOX_SOURCE_REPO: 'sagernet/sing-box'
-  SINGBOX_VER: '1.8.0'
+  SINGBOX_VER: '1.8.1'
 
 jobs:
   run:
@@ -36,9 +36,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Python dependencies & Prepare
+      - name: Install Python dependencies
         run: |
-          mkdir -p ${{ github.workspace }}/rule-set-company
           python3 -m pip install httpx[http2]
 
       - name: Download sing-box
@@ -47,26 +46,6 @@ jobs:
           curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo sing-box.tar.gz https://github.com/${{ env.SINGBOX_SOURCE_REPO }}/releases/download/v${{ env.SINGBOX_VER }}/sing-box-${{ env.SINGBOX_VER }}-linux-amd64v3.tar.gz
           tar xzvf sing-box.tar.gz --strip-components=1 -C ./
           chmod +x sing-box
-
-      - name: Fetch Company Geoip
-        run: |
-          cd ${{ github.workspace }}/rule-set-company
-          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-cloudflare.py
-          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-cloudfront.py
-          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-fastly.py
-          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-google.py
-          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-googlecloud.py
-          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-telegram.py
-
-      - name: Generate rule-set binary
-        run: |
-          cd ${{ github.workspace }}/rule-set-company
-          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-cloudflare.json
-          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-cloudfront.json
-          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-fastly.json
-          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-google.json
-          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-googlecloud.json
-          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set-company/geoip-telegram.json
 
       - name: Download country.mmdb
         run: |
@@ -88,6 +67,37 @@ jobs:
             echo "write ${{ github.workspace }}/rule-set/geoip-${list[i]}.json"
             ${{ github.workspace }}/sing-box geoip export ${list[i]} -f ${{ github.workspace }}/geoip.db -o ${{ github.workspace }}/rule-set/geoip-${list[i]}.json
           done
+
+      - name: Move rule-set country into another folder
+        run: |
+          mkdir -p ${{ github.workspace }}/rule-set/country
+          mv ${{ github.workspace }}/rule-set/*.json ${{ github.workspace }}/rule-set/country
+          mv ${{ github.workspace }}/rule-set/*.srs ${{ github.workspace }}/rule-set/country
+
+      - name: Prepare for Company Geoip
+        run: |
+          mkdir -p ${{ github.workspace }}/rule-set/company
+
+      - name: Fetch Company Geoip
+        run: |
+          cd ${{ github.workspace }}/rule-set/company
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-cloudflare.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-cloudfront.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-fastly.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-google.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-googlecloud.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-telegram.py
+
+      - name: Generate rule-set binary
+        run: |
+          cd ${{ github.workspace }}/rule-set/company
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-cloudflare.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-cloudfront.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-fastly.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-google.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-googlecloud.json
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-telegram.json
+
 
       - name: Generate geoip/mmdb sha256 hash
         run: |
@@ -114,9 +124,7 @@ jobs:
 
       - name: Push to "rule-set" branch
         run: |
-          mkdir -p ${{ github.workspace }}/rule-set-upload
-          cp ${{ github.workspace }}/rule-set/* ${{ github.workspace }}/rule-set-upload/
-          cd ${{ github.workspace }}/rule-set-upload
+          cd ${{ github.workspace }}/rule-set
           git init
           git config user.name "Epsilon"
           git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
@@ -125,18 +133,6 @@ jobs:
           git commit -m "${{ env.TAG_NAME }}"
           git remote add origin "https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}"
           git push -f origin rule-set
-
-      - name: Push to "rule-set-company" branch
-        run: |
-          cd ${{ github.workspace }}/rule-set-company
-          git init
-          git config user.name "Epsilon"
-          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-          git checkout -b rule-set-company
-          git add .
-          git commit -m "${{ env.TAG_NAME }}"
-          git remote add origin "https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}"
-          git push -f origin rule-set-company
 
       - name: Upload to Releases
         uses: softprops/action-gh-release@v1
