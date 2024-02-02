@@ -13,7 +13,8 @@ import httpx
 
 ipv4_url = 'https://www.cloudflare.com/ips-v4'
 ipv6_url = 'https://www.cloudflare.com/ips-v6'
-headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+# https://www.whatismybrowser.com/guides/the-latest-user-agent/chrome
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'}
 with httpx.Client(headers=headers, http2=True) as client:
     ipv4_res = client.get(ipv4_url)
     ipv4_arr = ipv4_res.content.decode().split()

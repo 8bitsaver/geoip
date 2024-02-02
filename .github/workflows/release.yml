@@ -87,6 +87,7 @@ jobs:
           python3 ${{ github.workspace }}/scripts/geoip-company/geoip-google.py
           python3 ${{ github.workspace }}/scripts/geoip-company/geoip-googlecloud.py
           python3 ${{ github.workspace }}/scripts/geoip-company/geoip-telegram.py
+          python3 ${{ github.workspace }}/scripts/geoip-company/geoip-github.py
 
       - name: Generate rule-set binary
         run: |
@@ -97,7 +98,7 @@ jobs:
           ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-google.json
           ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-googlecloud.json
           ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-telegram.json
-
+          ${{ github.workspace }}/sing-box rule-set compile ${{ github.workspace }}/rule-set/company/geoip-github.json
 
       - name: Generate geoip/mmdb sha256 hash
         run: |

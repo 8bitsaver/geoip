@@ -15,22 +15,23 @@ from ipaddress import ip_network
 import httpx
 
 url = 'https://d7uri8nf7uskq.cloudfront.net/tools/list-cloudfront-ips'
-headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+# https://www.whatismybrowser.com/guides/the-latest-user-agent/chrome
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'}
 with httpx.Client(headers=headers, http2=True) as client:
     res = client.get(url)
     ips = res.json()
     arr = ips['CLOUDFRONT_GLOBAL_IP_LIST'] + ips['CLOUDFRONT_REGIONAL_EDGE_IP_LIST']
-    ipv4_arr = []
-    ipv6_arr = []
+    ipv4_set = set()
+    ipv6_set = set()
 
     for e in arr:
         if ':' in e:
-            ipv6_arr.append(e)
+            ipv6_set.add(e)
         else:
-            ipv4_arr.append(e)
+            ipv4_set.add(e)
 
-    sorted_ipv4_arr = sorted(ipv4_arr, key=lambda x: ip_network(x))
-    sorted_ipv6_arr = sorted(ipv6_arr, key=lambda x: ip_network(x))
+    sorted_ipv4_arr = sorted(list(ipv4_set), key=lambda x: ip_network(x))
+    sorted_ipv6_arr = sorted(list(ipv6_set), key=lambda x: ip_network(x))
 
     rule_set = {
         'version': 1,

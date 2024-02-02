@@ -10,6 +10,7 @@ Some Company Public IP Range
 - https://developer.fastly.com/reference/cli/ip-list/
 - https://support.google.com/a/answer/10026322?hl=en
 - https://www.microsoft.com/en-ph/download/details.aspx?id=56519
+- https://api.github.com/meta
 
 From Third Party 
 
