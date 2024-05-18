@@ -8,7 +8,7 @@ on:
 env:
   GEOIP_SOURCE_REPO: '8bitsaver/ipinfo-geoip-maxmind-compat'
   SINGBOX_SOURCE_REPO: 'sagernet/sing-box'
-  SINGBOX_VER: '1.8.11'
+  SINGBOX_VER: '1.8.13'
 
 jobs:
   run:
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "^1.22"
           check-latest: true
 
       - name: Setup Python3
