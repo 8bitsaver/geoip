@@ -8,7 +8,7 @@ on:
 env:
   GEOIP_SOURCE_REPO: '8bitsaver/ipinfo-geoip-maxmind-compat'
   SINGBOX_SOURCE_REPO: 'sagernet/sing-box'
-  SINGBOX_VER: '1.8.13'
+  SINGBOX_VER: '1.9.1'
 
 jobs:
   run:
