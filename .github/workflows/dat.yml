@@ -1,0 +1,66 @@
+name: Publish Geoip lite data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 20 * * *'
+
+env:
+  GEOIP_SOURCE_REPO: 'Loyalsoldier/geoip'
+
+jobs:
+  run:
+    name: Generate geoip lite data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare
+        run: |
+          echo "TAG_NAME=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
+
+      - name: Download country.mmdb
+        run: |
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ${{ github.workspace }}/geoip.dat https://raw.githubusercontent.com/${{ env.GEOIP_SOURCE_REPO }}/release/geoip.dat
+
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ${{ github.workspace }}/geoip.dat.sha256sum https://raw.githubusercontent.com/${{ env.GEOIP_SOURCE_REPO }}/release/geoip.dat.sha256sum
+
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ${{ github.workspace }}/geoip-only-cn-private.dat https://raw.githubusercontent.com/${{ env.GEOIP_SOURCE_REPO }}/release/geoip-only-cn-private.dat
+
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ${{ github.workspace }}/geoip-only-cn-private.dat.sha256sum https://raw.githubusercontent.com/${{ env.GEOIP_SOURCE_REPO }}/release/geoip-only-cn-private.dat.sha256sum
+
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ${{ github.workspace }}/geoip-cn.dat https://raw.githubusercontent.com/${{ env.GEOIP_SOURCE_REPO }}/release/cn.dat
+
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ${{ github.workspace }}/geoip-cn.dat.sha256sum https://raw.githubusercontent.com/${{ env.GEOIP_SOURCE_REPO }}/release/cn.dat.sha256sum
+
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ${{ github.workspace }}/geoip-private.dat https://raw.githubusercontent.com/${{ env.GEOIP_SOURCE_REPO }}/release/private.dat
+
+          curl --connect-timeout 5 --retry 5 --retry-delay 5 --retry-max-time 25 -sLo ${{ github.workspace }}/geoip-private.dat.sha256sum https://raw.githubusercontent.com/${{ env.GEOIP_SOURCE_REPO }}/release/private.dat.sha256sum
+
+      - name: Push to "dat" branch
+        run: |
+          mkdir -p ${{ github.workspace }}/dat
+          mkdir -p ${{ github.workspace }}/dat/geoip
+          mkdir -p ${{ github.workspace }}/dat/geoip-only-cn-private
+          mkdir -p ${{ github.workspace }}/dat/geoip-cn
+          mkdir -p ${{ github.workspace }}/dat/geoip-private
+
+          cp ${{ github.workspace }}/geoip.dat ${{ github.workspace }}/dat/geoip/geoip.dat
+          cp ${{ github.workspace }}/geoip.dat.sha256sum ${{ github.workspace }}/dat/geoip/geoip.dat.sha256sum
+
+          cp ${{ github.workspace }}/geoip-only-cn-private.dat ${{ github.workspace }}/dat/geoip-only-cn-private/geoip.dat
+          cp ${{ github.workspace }}/geoip-only-cn-private.dat.sha256sum ${{ github.workspace }}/dat/geoip-only-cn-private/geoip.dat.sha256sum
+
+          cp ${{ github.workspace }}/geoip-cn.dat ${{ github.workspace }}/dat/geoip-cn/geoip.dat
+          cp ${{ github.workspace }}/geoip-cn.dat.sha256sum ${{ github.workspace }}/dat/geoip-cn/geoip.dat.sha256sum
+
+          cp ${{ github.workspace }}/geoip-private.dat ${{ github.workspace }}/dat/geoip-private/geoip.dat
+          cp ${{ github.workspace }}/geoip-private.dat.sha256sum ${{ github.workspace }}/dat/geoip-private/geoip.dat.sha256sum
+
+          cd ${{ github.workspace }}/dat
+          git init
+          git config user.name "Epsilon"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git checkout -b dat
+          git add .
+          git commit -m "${{ env.TAG_NAME }}"
+          git remote add origin "https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}"
+          git push -f origin dat
